@@ -89,27 +89,61 @@ def claude_bin():
     return shutil.which("claude") or "claude"
 
 
+AUTH_HINT = re.compile(r"log ?in|sign ?in|authenticat|unauthorized|api key|credential|/login",
+                       re.IGNORECASE)
+
+
+def run_once():
+    """한 번 호출해서 (한도 목록, 실패 사유) 를 돌려준다. 성공하면 사유는 None."""
+    try:
+        p = subprocess.run([claude_bin(), "-p", "/usage"],
+                           capture_output=True, text=True, timeout=TIMEOUT,
+                           cwd=os.path.expanduser("~"),
+                           # stdin 을 닫지 않으면 CLI 가 파이프 입력을 3초 기다린다.
+                           # 그만큼 매 호출이 느려지고, 드물게 그대로 멈춘다.
+                           stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        return [], "응답 지연"
+    except Exception:
+        return [], "실행 실패"
+
+    limits = parse(p.stdout)
+    if limits:
+        return limits, None
+    # 돌긴 돌았는데 한도 줄이 없다. 로그인이 풀린 경우가 대부분이라 구분해 준다.
+    blob = (p.stdout or "") + (p.stderr or "")
+    if AUTH_HINT.search(blob):
+        return [], "로그인 필요"
+    return [], "해석 실패" if p.returncode == 0 else "실행 실패"
+
+
 def fetch(force=False):
     cached = load_cache()
     if not force and cached and time.time() - cached.get("fetched", 0) < TTL:
         return cached
 
-    try:
-        p = subprocess.run([claude_bin(), "-p", "/usage"],
-                           capture_output=True, text=True, timeout=TIMEOUT,
-                           cwd=os.path.expanduser("~"))
-        limits = parse(p.stdout)
-    except Exception:
-        limits = []
+    limits, reason = run_once()
+    if not limits and reason != "로그인 필요":
+        # 한 번 실패했다고 바로 '갱신 실패' 를 띄우면 일시적인 끊김에도 위젯이 깜빡인다.
+        # 로그인 문제는 다시 시도해도 결과가 같으므로 재시도하지 않는다.
+        time.sleep(2)
+        limits, reason = run_once()
 
     if not limits:
-        # 실패하면 마지막으로 성공한 값을 stale 표시와 함께 유지한다.
+        # 실패하면 마지막으로 성공한 값을 사유와 함께 유지한다.
         if cached and cached.get("limits"):
             cached["stale"] = True
+            cached["reason"] = reason
+            save_cache(cached)
             return cached
-        return {"fetched": time.time(), "limits": [], "stale": True}
+        return {"fetched": time.time(), "limits": [], "stale": True, "reason": reason}
 
-    result = {"fetched": time.time(), "limits": limits, "stale": False}
+    result = {"fetched": time.time(), "limits": limits, "stale": False, "reason": None}
+    save_cache(result)
+    return result
+
+
+def save_cache(result):
     try:
         os.makedirs(os.path.dirname(CACHE), exist_ok=True)
         tmp = CACHE + ".tmp"
@@ -118,7 +152,6 @@ def fetch(force=False):
         os.replace(tmp, CACHE)
     except OSError:
         pass
-    return result
 
 
 if __name__ == "__main__":

@@ -6,8 +6,10 @@ let claudeOrange = Color(red: 0.851, green: 0.467, blue: 0.341)
 let codexGreen  = Color(red: 0.063, green: 0.639, blue: 0.498)
 
 /// 한도 갱신이 실패했을 때만 헤더 우측에 표시한다. 평소에는 아무것도 띄우지 않는다.
+/// 이유를 알면 그대로 보여준다 — "갱신 실패" 만으로는 뭘 해야 할지 알 수 없다.
 func staleNote(_ u: Usage) -> String? {
-    (u.providers ?? []).contains(where: { $0.stale }) ? "갱신 실패" : nil
+    guard let p = (u.providers ?? []).first(where: { $0.stale }) else { return nil }
+    return p.reason ?? "갱신 실패"
 }
 
 func brandColor(_ providerID: String) -> Color {

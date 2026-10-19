@@ -203,10 +203,11 @@ def providers():
     if cl.get("limits"):
         out.append({"id": "claude", "name": "Claude Code", "plan": None,
                     "stale": bool(cl.get("stale")), "fetched": cl.get("fetched", 0),
-                    "limits": cl["limits"]})
+                    "reason": cl.get("reason"), "limits": cl["limits"]})
     if cx.get("limits"):
         out.append({"id": "codex", "name": "Codex", "plan": cx.get("plan"),
                     "stale": bool(cx.get("stale")), "fetched": cx.get("fetched", 0),
+                    "reason": "기록 오래됨" if cx.get("stale") else None,
                     "limits": cx["limits"]})
     return out
 

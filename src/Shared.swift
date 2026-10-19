@@ -63,6 +63,8 @@ struct LimitProvider: Codable, Identifiable, Hashable {
     let plan: String?
     let stale: Bool
     let fetched: Double
+    /// 갱신에 실패한 이유. "로그인 필요" 처럼 사용자가 손쓸 수 있는 말이 들어온다.
+    let reason: String?
     let limits: [Limit]
 
     var session: Limit? { limits.first { $0.isSession } }
@@ -97,7 +99,7 @@ struct Usage: Codable, Hashable {
         last_activity: Date().timeIntervalSince1970 - 300,
         providers: [
             LimitProvider(id: "claude", name: "Claude Code", plan: nil, stale: false,
-                     fetched: Date().timeIntervalSince1970, limits: [
+                     fetched: Date().timeIntervalSince1970, reason: nil, limits: [
                 Limit(scope: "session", label: "5시간 세션", used: 31,
                       reset: Date().timeIntervalSince1970 + 7600),
                 Limit(scope: "week", label: "주간 전체", used: 34,
@@ -106,7 +108,7 @@ struct Usage: Codable, Hashable {
                       reset: Date().timeIntervalSince1970 + 400000),
             ]),
             LimitProvider(id: "codex", name: "Codex", plan: "plus", stale: false,
-                     fetched: Date().timeIntervalSince1970, limits: [
+                     fetched: Date().timeIntervalSince1970, reason: nil, limits: [
                 Limit(scope: "session", label: "5시간 세션", used: 29,
                       reset: Date().timeIntervalSince1970 + 13600),
                 Limit(scope: "week", label: "주간 전체", used: 22,
